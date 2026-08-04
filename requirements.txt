@@ -1,0 +1,7 @@
+requests>=2.25
+pyaes>=1.6.1
+qrcode>=7.0
+Pillow>=8.0
+# 终端 ASCII 二维码(可选, 供 --qrcode 显示)在 Alpine/iSH:
+#   apk add zbar py3-pyzbar
+# pyzbar>=0.1.9
