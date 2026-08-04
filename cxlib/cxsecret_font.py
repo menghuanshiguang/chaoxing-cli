@@ -71,12 +71,29 @@ class FontHashDAO:
         self.hash_map: Dict[str, str] = {}  # hash -> unicode
         
         full_path = resource_path(file_path)
-        try:
-            with open(full_path, "r", encoding="utf-8") as fp:
-                self.char_map = json.load(fp)
-                self.hash_map = {hash_val: char for char, hash_val in self.char_map.items()}
-        except (FileNotFoundError, json.JSONDecodeError) as e:
-            raise FontDecodeError(f"加载字体映射表失败: {full_path} - {e}") from e
+        data = None
+        # 优先完整映射表; 缺失时从 parts 分片重组 (gzip+base64)
+        if os.path.exists(full_path):
+            try:
+                with open(full_path, "r", encoding="utf-8") as fp:
+                    data = json.load(fp)
+            except json.JSONDecodeError:
+                data = None
+        if data is None:
+            import glob
+            parts_dir = os.path.join(os.path.dirname(full_path), "parts")
+            part_files = sorted(glob.glob(os.path.join(parts_dir, "font_map.part*")))
+            if part_files:
+                try:
+                    import base64 as _b64, gzip as _gz
+                    merged = "".join(open(pf, encoding="utf-8").read() for pf in part_files)
+                    data = json.loads(_gz.decompress(_b64.b64decode(merged)).decode("utf-8"))
+                except Exception as e:
+                    raise FontDecodeError(f"重组字体映射表失败: {e}") from e
+        if data is None:
+            raise FontDecodeError(f"加载字体映射表失败: {full_path} 及其分片均不可用")
+        self.char_map = data
+        self.hash_map = {hash_val: char for char, hash_val in data.items()}
 
     def find_char(self, font_hash: str) -> Optional[str]:
         """
